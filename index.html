@@ -139,18 +139,20 @@
     <div class="mermaid">
 flowchart LR
     A([Bank backend
-POST /v1/verification/start]) --> B[Trust Platform
-creates session + returns redirect URL]
-    B --> C{Which verification
-method configured
-for this customer?}
+POST /v1/verify
+workflow_id: customer-specific]) --> B[Trust Platform
+reads workflow config
+for this customer]
+    B --> C{Which paths are
+available per this
+customer's config?}
 
-    C -->|Customer has German eID| D[eID path
+    C -->|eID in product catalogue| D[eID path
 NFC chip read via mobile SDK]
-    C -->|Standard onboarding| E[AutoIdent path
+    C -->|AutoIdent in product catalogue| E[AutoIdent path
 Document scan + liveness]
-    C -->|High-risk jurisdiction
-or manual flag| F[VideoIdent path
+    C -->|VideoIdent in product catalogue
+or workflow routes here directly| F[VideoIdent path
 Live agent session]
 
     D --> D1{NFC chip
@@ -159,9 +161,13 @@ read successful?}
 No separate liveness needed
 FINAL webhook fired immediately]
     D1 -->|No - card blocked
-or device incompatible| D3[Fallback:
-Route to VideoIdent]
-    D3 --> F
+or device incompatible| D3{VideoIdent in
+this customer's
+product catalogue?}
+    D3 -->|Yes - fallback available| F
+    D3 -->|No - fallback not configured| EF[FAILED webhook
+No fallback available
+for this customer]
 
     E --> E1[Document scan
 AutoIdent AI checks:
@@ -177,7 +183,11 @@ Customer prompted to retry]
     E4 --> E5{Retry
 attempt?}
     E5 -->|Yes - retry| E1
-    E5 -->|Max retries reached| F
+    E5 -->|Max retries reached| E8{VideoIdent in
+this customer's
+product catalogue?}
+    E8 -->|Yes - fallback available| F
+    E8 -->|No - fallback not configured| EF
 
     E3 --> E6{Liveness
 check result?}
@@ -186,7 +196,11 @@ above threshold| E7[AutoIdent: APPROVED
 REALTIME webhook fired
 Pending human review]
     E6 -->|Fail - low confidence
-or deepfake detected| F
+or deepfake detected| E9{VideoIdent in
+this customer's
+product catalogue?}
+    E9 -->|Yes - fallback available| F
+    E9 -->|No - fallback not configured| EF
 
     F --> F1[Customer joins
 live video session
@@ -226,6 +240,7 @@ reason code included]
     G2 --> Z
     F7 --> Z
     G3 --> Z
+    EF --> Z
 
     Z([Trust Platform fires
 one webhook to bank
